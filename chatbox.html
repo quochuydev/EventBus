@@ -1,0 +1,110 @@
+<html>
+<body>
+	<input type="text" id="message" name="">		
+	<button id="send" onclick="sendMessage()">Send Message</button>
+	<ul id="boxchat"></ul>
+</body>
+<script type="text/javascript">
+	// quochuydev
+	
+	let EventBus = EventBusFactory();
+
+	EventBus.on('SEND', (event)=>{
+		let message = event.data;
+		appendMessage(message);
+	})
+
+	function appendMessage(message){
+		var node = document.createElement("li");
+		var textnode = document.createTextNode(message);
+		node.appendChild(textnode);    
+		document.getElementById("boxchat").appendChild(node);
+	}
+
+	function sendMessage(){
+		let message = document.getElementById("message").value;
+		appendMessage(message);
+		EventBus.emit('SEND', message)
+	}
+
+	function EventBusFactory(){
+		const EventBus = {
+			EVENT: { 
+				SEND: 'SEND',
+			},
+
+			listeners: {},
+
+			channel: new BroadcastChannel(`EVENT`),
+
+			on(eventName, listener){
+				if (!EventBus.listeners[eventName]) {
+					EventBus.listeners[eventName] = [];
+				}
+				if (!EventBus.listeners[eventName].includes(listener)) {
+					EventBus.listeners[eventName].push(listener);
+				}
+			},
+
+			off(eventName, listener){
+				if (EventBus.listeners[eventName]) {
+					let li = EventBus.listeners[eventName].findIndex(item => item === listener);
+					if (li >= 0) {
+						EventBus.listeners[eventName].splice(li, 1);
+					}
+				}
+			},
+
+			once(eventName, listener) {
+				listener.___once = true;
+				EventBus.on(eventName, listener);
+			},
+
+			emit(eventName, data){
+				let event = {
+					create_at: new Date(),
+					name: eventName,
+					data
+				}
+				EventBus.channel.postMessage(event);
+			},
+
+			start(){
+				EventBus.channel.onmessage = raw_event => {
+					let event = raw_event.data;
+
+					const eventName = event.name;
+					const once_listeners = [];
+
+					if (EventBus.listeners[eventName]) {
+						for (let listener of EventBus.listeners[eventName]) {
+							listener(event);
+							if (listener.___once) {
+								once_listeners.push(listener);
+							}
+						}
+					}
+
+					if (once_listeners.length > 0) {
+						for (let listener of once_listeners) {
+							EventBus.off(eventName, listener);
+						}
+					}
+				}
+
+				EventBus.channel.onmessageerror = raw_event => {
+					console.error(raw_event);
+				}
+			},
+
+			stop() {
+				EventBus.channel.close();
+			}
+		}
+
+		EventBus.start();
+
+		return EventBus;
+	}
+</script>
+</html>	
